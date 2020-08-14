@@ -81,7 +81,7 @@ called by the hpc_runner
 ### Script templates
 These template files are used to create a command line which will
 invoke a job on the HPC system.  These templates use identifiers
-prefixed with a $ to indicate replaceable text (i.e. $name)
+wrapped in braces to indicate replaceable text (i.e. {name})
 
 The description file will provide the values for the arguments as 
 well as the input/output files, which will be filled in at 
@@ -93,13 +93,15 @@ Additionally, these variables are available:
 
 |Name|Value|
 |----|-----|
-|$workspace|The full path to the HPC workspace directory
+|workspace|The full path to the HPC workspace directory|
+|scripts|Path to scripts/containers/etc|
 
 
-A sample template for a singularity container that takes a level parameter, an input, and two different outputs:
+A sample template for a singularity container that takes a level 
+parameter, an input, and two different outputs:
 
 ````
-singularity run --nv --bind $workspace:/mnt my_container.sif --level=$level /mnt/$input /mnt/$txt_output /mnt/$json_output
+singularity run --nv --bind {workspace}:/mnt {scripts}/my_container.sif --level={level} /mnt/{input} /mnt/{txt_output} /mnt/{json_output}
 ````
 
 
@@ -107,7 +109,6 @@ singularity run --nv --bind $workspace:/mnt my_container.sif --level=$level /mnt
 ### Job Description File
 The file is a YAML-formatted file with these fields:
 ````
-result: <fully-qualified filename for result of job>
 script: <name of the script to run on HPC worker>
 args:
     ... key/value pairs for any script arguments ...
@@ -119,10 +120,9 @@ output_map:
     ... as needed ..
 ````
 
-So a job description to call the template above may read:
+So a job description ("thing.job") to call the template above may read:
 
 ````
-result: /tmp/my_container.finished
 script: my_container
 args:
     level: 6
@@ -141,7 +141,7 @@ singularity run --nv --bind /scratch/1234:/mnt my_container.sif --level=6 /mnt/f
 ````
 
 and upon completion would create a result file in 
-/tmp/my_container.finished and place the two output files in
+thing.job.finished and place the two output files in
 /tmp/foo.txt and /tmp/foo.json.
 
 
@@ -156,45 +156,72 @@ be transferred to/from the HPC system, or any other reason, the
 output files will not be present and failure information will be
 included the result file.
 
-The result file format is:
+The result file format is the job description format, plus this top
+level node:
 ````
-status: <either 'ok', or 'error'>
-message: <"human" readable status message>
-stderr: <contents of remote job stderr>
-stdout: <contents of remote job stdout>
-rc: <remote job return code>
+job:
+    status: <either 'ok', or 'error'>
+    message: <"human" readable status message>
+    stderr: <contents of remote job stderr>
+    stdout: <contents of remote job stdout>
+    rc: <remote job return code>
 ````
 
 On a successful run above the result file may look like:
 ````
-status: ok
-message: processed OK
-stderr:  <whatever was in stderr>
-stdout:  <whatever was in stdout>
-rc: 0
+script: my_container
+args:
+    level: 6
+input_map:
+    input: /tmp/foo.mp3
+output_map:
+    json_output: /tmp/foo.json
+    txt_output:  /tmp/foo.txt   
+job:
+    status: ok
+    message: processed OK
+    stderr:  <whatever was in stderr>
+    stdout:  <whatever was in stdout>
+    rc: 0
 ````
 
 but a failure might look like:
 
 ````
-status: error
-message: Remote command failed with return code 1
-stderr: ERROR: Input file is the wrong format
-stderr: 
-rc: 1
+script: my_container
+args:
+    level: 6
+input_map:
+    input: /tmp/foo.mp3
+output_map:
+    json_output: /tmp/foo.json
+    txt_output:  /tmp/foo.txt   
+job:
+    status: error
+    message: Remote command failed with return code 1
+    stderr: ERROR: Input file is the wrong format
+    stderr: 
+    rc: 1
 ````
 
 
 ### Dropbox on the AMP server
 This dropbox holds the submitted job descriptions.  The description 
-filename should be unique and end with ".job"
+submitter must ensure a unique filename that ends with ".job"
 
-This is a flat directory with no internal structure.  Job
-descriptions are removed when the are submitted to the HPC system
+This is a flat directory with no internal structure.  
 
-### Work Directory on HPC Head Node
+### Directory on HPC Head Node / HPC Worker Node
 
 ````
-templates/
-    # files her
+hpc_batch/
+    scripts/
+        # hpc_runner, support scripts, singularity
+        # containers, etc.
+    templates/
+        # script templates
+    jobs/
+        # dropbox for job descriptions
+    workspace/
+        # a new subdir created for each running job?
 ````

@@ -1,0 +1,12 @@
+#!/bin/bash
+module load singularity
+exec singularity run --nv \
+    --bind {workspace}/in_dir:amp_files/input \
+    --bind {workspace}/out_dir:amp_files/output \
+    --bind {workspace}/work_dir:amp_files/data \
+    {scripts}/amp-nvidia-kaldi-asr-1.2.sif \
+    /opt/amp/ampservice/main.py \
+    -i /amp_files/input \
+    -o /amp_files/output \
+    -d /amp_files/data \
+    --log_level debug --single-run --lowercase

@@ -2,6 +2,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.ini
+id_rsa*
+hpc_batch/workspace/*.job*
+
 
 # C extensions
 *.so

@@ -1,0 +1,18 @@
+[remote]
+host = carbonate.uits.iu.edu
+port = 22
+hpc_batch_dir = /absolute/path/to/hpc_batch
+
+[auth]
+user = your_user
+key_file = /absolute/path/to/id_rsa
+passphrase = pa$5phrase_for_1d_r5a
+
+[hpc]
+gres = gpu:v100:1
+partition = dl
+gpuram = 32
+
+[cronjob]
+dropbox = /absolute/path/to/dropbox
+lockfile = /absolute/path/to/lockfile

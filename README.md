@@ -79,9 +79,9 @@ called by the hpc_runner
 ## Directory Structures & File Formats
 
 ### Script templates
-These template files are used to create a command line which will
+These template files are used to create a script which will
 invoke a job on the HPC system.  These templates use identifiers
-wrapped in braces to indicate replaceable text (i.e. {name})
+wrapped in french quotes to indicate replaceable text (i.e. <\<name>>)
 
 The description file will provide the values for the arguments as 
 well as the input/output files, which will be filled in at 
@@ -99,13 +99,12 @@ Additionally, these variables are available:
 
 Any other variables assigned in the .ini file in hpc_env will also be passed.
 
-
-
 A sample template for a singularity container that takes a level 
 parameter, an input, and two different outputs:
 
 ````
-singularity run --nv --bind {workspace}:/mnt {scripts}/my_container.sif --level={level} /mnt/{input} /mnt/{txt_output} /mnt/{json_output}
+#!/bin/bash
+singularity run --nv --bind <<workspace>>:/mnt <<containers>>/my_container.sif --level=<<level>> /mnt/<<input>> /mnt/<<txt_output>> /mnt/<<json_output>>
 ````
 
 

@@ -1,7 +1,8 @@
+#!/bin/bash
 module load singularity
-singularity run --nv \
-    --bind {workspace}:/mnt \
-    {containers}/inaspeech.sif \
-    /mnt/input/{input}
-    /mnt/output/{segments}
+exec singularity run --nv \
+        --bind <<workspace>>:/mnt \
+        <<containers>>/inaspeech.sif \
+        /mnt/input/<<input>>
+        /mnt/output/<<segments>>
 

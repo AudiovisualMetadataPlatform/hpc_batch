@@ -23,17 +23,18 @@ def main():
 
     # continue running jobs until there are no more to do.
     while True:
-        active = 0        
         for job in workspace.iterdir():
+            pending = 0
             if not job.is_dir() or (job / "finished.out").exists():
                 # skip non-directories and those which are finished.
                 continue
-
-            active += 1
-            if not (job / "job.sh").exists():
-                # If older than 30 minutes, then we'll ignore it.
-                if (time.time - job.stat().st_mtime) > 1800:                    
-                    active -= 1
+            
+            if not (job / "job.sh").exists():                  
+                # if the job directory exists but there's no job.sh file,
+                # wait until it is 10 minutes old to allow for uploads to
+                # complete.  
+                if time.time() - job.stat().st_mtime() < 600:
+                    pending += 1
                 continue
 
             # run the job and create the finished.out file.
@@ -41,15 +42,18 @@ def main():
                 with open(job / "stderr.txt", mode="w", encoding='utf-8') as stderr:
                     script = job / "job.sh"                    
                     logging.debug(f"Running {script}")
-                    proc = subprocess.run(script,
+                    proc = subprocess.run([script],
                                         stdout=stdout, stderr=stderr)
-                    with open(job / "finished.out") as f:
+                    with open(job / "finished.out", mode="w") as f:
                         f.write(str(proc.returncode) + "\n")
                     logging.debug(f"Exit with return code {proc.returncode}")
         
-        if not active:
+        if pending:
+            time.sleep(30)
+        else:
             break
 
+        
 
 if __name__ == "__main__":
     main()

@@ -68,7 +68,7 @@ def main():
                     logging.error(f"Cannot submit {jobfile}: {e}")
 
             # Submit the remote runner, if it isn't already
-            submit_runner(ssh, 
+            submit_runner(ssh, config['hpc_env'], debug=args.default,
                           email=args.email,
                           memory=config['hpc']['memory'],
                           partition=config['hpc']['partition'],
@@ -160,27 +160,34 @@ def send_job(ssh, jobfile, hpc_env):
     sftp.close()
 
 
-def submit_runner(ssh, email=None,
+def submit_runner(ssh, hpc_env, email=None, debug=False,
              memory=32, partition=None, resource=None):
     """
-    Submit the hpc_runner program to the slurm queue if it isn't already
-    running or already in the queue
+    Run the hpc_queuer script on HPC which will queue the hpc_runner script
+    if there are todo jobs on the HPC system and the runner isn't currently
+    queued or running.
     """
-    workspace="/foo"  # TODO
-    with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
-        hpc_jobfile = f.name
-        f.write("#!/bin/bash\n")
-        f.write(f"#SBATCH -p {partition}\n")
-        f.write(f"#SBATCH --gres {resource}\n")
-        f.write(f"#SBATCH -o {workspace}/stdout.txt\n")
-        f.write(f"#SBATCH -e {workspace}/stderr.txt\n")
-        if email is not None:
-            f.write("#SBATCH --mail-type=ALL\n")
-            f.write(f"#SBATCH --mail-user={email}\n")
-        f.write(f"#SBATCH --mem={memory}G\n")
-    
+    cmd = [f'{hpc_env["scripts"]}/hpc_queuer', f'--memory={memory}']
+    if email:
+        cmd.append(f'--email={email}')
+    if partition:
+        cmd.append(f"--partition {partition}")
+    if resource:
+        cmd.append(f"--gpu {resource}")
+    if debug:
+        cmd.append("--debug")
+    cmd.append(f"{hpc_env['scripts']}/hpc_runner")
 
-    pass
+    command = " ".join(cmd)
+    ssh.exec_command(command)
+
+
+
+
+
+
+
+
 
 def get_results(ssh, nocleanup=False):
     """

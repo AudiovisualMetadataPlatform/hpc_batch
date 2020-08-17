@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+# Queue the hpc_runner script if necessary
+
+import argparse
+from pathlib import Path
+import logging
+import subprocess
+import sys
+import getpass
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--debug", default=False, action="store_true", help="Turn on debugging")
+    parser.add_argument("--partition", default=None, help="HPC Partition")
+    parser.add_argument("--email", default=None, help="HPC Status Email")
+    parser.add_argument("--memory", default=32, type=int, help="Memory allocation")
+
+    parser.add_argument("--gpu", default=None, help="GPU Resource")
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO, 
+                        stream=sys.stderr,
+                        format="%(asctime)s %(levelname)s %(message)s")
+
+    workspace = Path(f"{sys.path[0]}/../workspace")
+    if not workspace.exists():
+        logging.error("Workspace doesn't exist!")
+        exit(1)
+
+
+    # check if any jobs are currently outstanding
+    active = 0
+    for job in workspace.iterdir():
+        if not job.is_dir() or (job / "finished.out").exists():
+            # skip non-directories and those which are finished.
+            continue
+
+        if (job / "job.sh").exists():
+            active += 1
+
+    logging.debug(f"There are {active} active jobs waiting")
+
+    if not active:
+        exit(0)
+
+    # we need to handle those, let's see if the runner is already queued.
+    proc = subprocess.run(['squeue', '-u', getpass.getuser(), '--name', 'hpc_runner'],
+                          check=True, capture_output=True, encoding='utf-8')
+    if len(proc.stdout.splitlines()) > 1:
+        logging.debug("hpc_runner is already queued or running")
+        exit(0)
+
+    logging.debug("hpc_runner isn't in slurm and there are waiting jobs")
+
+    cmd = ['sbatch', f'--mem={args.memory}', 
+           f"-e {workspace}/hpc_runner_stderr.txt",
+           f"-o {workspace}/hpc_runner_stdout.txt"]
+    if args.email:
+        cmd.append(f'--mail-type=ALL --mail-user={args.email}')
+    if args.partition:
+        cmd.append(f"-p {args.partition}")
+    if args.gpu:
+        cmd.append(f"--gres {args.gpu}")
+    if args.debug:
+        cmd.append("--debug")
+
+    cmd.append(f"{sys.path[0]}/hpc_runner")
+
+    proc = subprocess.run(cmd)
+
+
+if __name__ == "__main__":
+    main()

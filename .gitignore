@@ -5,6 +5,7 @@ __pycache__/
 *.ini
 id_rsa*
 hpc_batch/workspace/*.job*
+dropbox/*.job*
 
 
 # C extensions

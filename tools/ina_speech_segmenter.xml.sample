@@ -4,7 +4,7 @@
         <requirement type="package" version="8.30">coreutils</requirement>
     </requirements>
   <command detect_errors="exit_code">
-    $__tool_directory__/ina_speech_segmenter.py /some_dropbox $input $segments
+    $__tool_directory__/ina_speech_segmenter.py /some/dropbox/directory $input $segments
   </command>
    <inputs>
    <!-- should be wave data type -->
@@ -19,6 +19,9 @@
 .. class:: infomark
 
 Segment an audio file using an HPC INA Speech Segmenter instance.
+
+When deploying, make sure to set the /some/dropbox/directory to wherever hpc_batch
+is expecting the dropbox to reside.
 
   </help>
 </tool>

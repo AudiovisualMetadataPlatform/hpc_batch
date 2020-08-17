@@ -1,9 +1,6 @@
 [remote]
 host = carbonate.uits.iu.edu
 port = 22
-hpc_batch_dir = /absolute/path/to/hpc_batch
-
-[auth]
 user = your_user
 key_file = /absolute/path/to/id_rsa
 passphrase = pa$5phrase_for_1d_r5a
@@ -16,3 +13,8 @@ gpuram = 32
 [cronjob]
 dropbox = /absolute/path/to/dropbox
 lockfile = /absolute/path/to/lockfile
+
+[hpc_env]
+workspace = /absoute/remote/path/hpc_batch/workspace
+scripts = /absolute/remote/path/hpc_batch/scripts
+containers = /absolute/path/to/containers

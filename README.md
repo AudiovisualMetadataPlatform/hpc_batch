@@ -94,7 +94,11 @@ Additionally, these variables are available:
 |Name|Value|
 |----|-----|
 |workspace|The full path to the HPC workspace directory|
-|scripts|Path to scripts/containers/etc|
+|scripts|Full path to scripts on HPC|
+|containers|Full path to where .sif files are stored|
+
+Any other variables assigned in the .ini file in hpc_env will also be passed.
+
 
 
 A sample template for a singularity container that takes a level 
@@ -211,8 +215,8 @@ submitter must ensure a unique filename that ends with ".job"
 
 This is a flat directory with no internal structure.  
 
-### Directory on HPC Head Node / HPC Worker Node
-
+### Directory on HPC 
+...TODO...
 ````
 hpc_batch/
     scripts/

@@ -1,7 +1,0 @@
-#!/bin/bash
-module load singularity
-exec singularity run --nv \
-    --bind {workspace}/work_dir:/mnt \
-    {scripts}inaspeech.sif \
-    /mnt/{input}
-    

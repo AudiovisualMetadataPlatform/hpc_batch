@@ -11,6 +11,9 @@ import time
 import stat
 import configparser
 import tempfile
+import yaml
+import re
+import traceback
 
 
 logging.basicConfig(level=logging.DEBUG, stream=sys.stderr,
@@ -50,16 +53,16 @@ def main():
     try:
         # create the lock
         with open(lockfile, mode="w") as f:
-            f.write(os.getpid() + "\n")
+            f.write(str(os.getpid()) + "\n")
 
         # connect to the remote machine and go to our batch directory
         with paramiko.SSHClient() as ssh:
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             ssh.connect(hostname=config['remote']['host'], 
                         port=config['remote']['port'], 
-                        username=config['auth']['user'],
-                        key_filename=config['auth']['key_file'],
-                        passphrase=config['auth']['passphrase'])
+                        username=config['remote']['user'],
+                        key_filename=config['remote']['key_file'],
+                        passphrase=config['remote']['passphrase'])
 
             try:
                 sftp = ssh.open_sftp()
@@ -70,19 +73,27 @@ def main():
             # Push any new jobs to the HPC dropbox
             dropbox = Path(config['cronjob']['dropbox'])
             for jobfile in dropbox.glob("*.job"):
-                send_job(ssh, jobfile)
+                send_job(ssh, jobfile, config['hpc_env'],
+                         nocleanup=args.nocleanup, email=args.email,
+                         memory=config['hpc']['memory'],
+                         partition=config['hpc']['partition'],
+                         resource=config['hpc']['gres'])
 
             # Submit the remote runner, if it isn't already
             submit_runner(ssh)
 
             # capture any ready output
             get_results(ssh)
-
+    
+    except Exception as e:        
+        logger.error(e)
+        traceback.print_exc()
     finally:
         lockfile.unlink()
 
 
-def send_job(ssh, jobfile):
+def send_job(ssh, jobfile, hpc_env, nocleanup=False, email=None,
+             memory=32, partition=None, resource=None):
     """
     Copy the files to the HPC cluster
     """
@@ -94,24 +105,80 @@ def send_job(ssh, jobfile):
     # Create the workspace directory by using the submitter's hostname, 
     # the inode of the submitted job file and the current time.
     workdir = f"{socket.gethostname().split('.')[0]}-{jobfile.stat().st_ino}-{time.time()}"
-    workspace = config['hpc_batchdir']['workspace'] + "/workspace/" + workdir
-    logger.info(f"Creating work directory: {workspace}")
+    workspace = hpc_env['workspace'] + workdir
+    job['hpc_workspace'] = workspace
+    
+    logger.debug(f"Creating work directory: {workspace}")
     sftp.mkdir(workspace)
     sftp.chdir(workspace)
 
+    # copy the args into the params
+    params = {}
+    params.update(hpc_env)
+    if 'args' in job:
+        params.update(job['args'])
 
-
-
-
-    for d in ['work_dir']:
-        sftp.mkdir(d)
+    # copy the input files to the workspace    
+    sftp.mkdir('input')
+    sftp.chdir('input')
+    job['input_map_hpc'] = {}
+    for ifile, localfile in job['input_map'].items():
+        localfile = Path(localfile)
+        remotefile = workspace + "/input/" + localfile.name
+        job['input_map_hpc'][ifile] = remotefile
+        logger.debug(f"Copying {localfile} to {remotefile}")
+        sftp.put(localfile, remotefile)
+        params[ifile] = localfile.name
+    sftp.chdir("..")
     
+    # create the map for the output files
+    sftp.mkdir('output')
+    job['output_map_hpc'] = {}
+    for ofile, localfile in job['output_map'].items():
+        localfile = Path(localfile)
+        remotefile = workspace + "/output/" + localfile.name
+        job['output_map_hpc'][ofile] = remotefile
+        params[ofile] = localfile.name
+
+    # build the job script 
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
+        hpc_jobfile = f.name
+        f.write("#!/bin/bash\n")
+        f.write(f"#SBATCH -p {partition}\n")
+        f.write(f"#SBATCH --gres {resource}\n")
+        f.write(f"#SBATCH -o {workspace}/stdout.txt\n")
+        f.write(f"#SBATCH -e {workspace}/stderr.txt\n")
+        if email is not None:
+            f.write("#SBATCH --mail-type=ALL\n")
+            f.write(f"#SBATCH --mail-user={email}\n")
+        f.write(f"#SBATCH --mem={memory}G\n")
+
+        # Insert the run script here
+        template = Path(sys.path[0], f"tools/{job['script']}.template")
+        with open(template) as t:
+            for l in t.readlines():
+                while m := re.search(r"\{(.+?)\}", l):
+                    key = m.group(1)
+                    if key in params:
+                        l = re.sub(r"\{.+?\}", params[key], l)
+                    else:
+                        logger.warning(f"Key '{key}' desired by script template, but not set in job")
+                        break
+                f.write(l)
+                
+        job['finished_file'] = "{workspace}/finished.out"
+        f.write(f"echo $? > {job['finished_file']}\n")
+
+    sftp.put(hpc_jobfile, workspace + "/job.sh")
+    sftp.chmod(workspace + "/job.sh", 0o750)
+
     
-    
+    # write the updated job file as .submitted
+    with open(str(jobfile) + ".submitted", "w") as f:
+        yaml.dump(job, f)
+    # remove the original job file
+    jobfile.unlink()
 
-
-
-    jobfile.rename(jobfile + ".submitted")
 
 
 def submit_runner(ssh):
@@ -137,69 +204,7 @@ def get_results(ssh):
 
 
 def old():
-    # make the ssh connection and get moving
-    error = False
-    with paramiko.SSHClient() as ssh:
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname=config['remote']['host'], 
-                    port=config['remote']['port'], 
-                    username=config['auth']['user'],
-                    key_filename=config['auth']['key_file'],
-                    passphrase=config['auth']['passphrase'])
-        sftp = ssh.open_sftp()
-
-        # go to the workspace directory
-        try:
-            sftp.chdir(config['remote']['workspace'])
-        except Exception as e:
-            logger.critical(f"Cannot change to base directory {config['remote']['workspace']}: {e}")
-            exit(1)
-
-        try:
-            # create the working directory for the remote process    
-            workdir = f"{socket.gethostname().split('.')[0]}-{os.getpid()}-{time.time()}"
-            workspace = config['remote']['workspace'] + "/" + workdir
-            logger.info(f"Creating work directory: {workdir}")
-            sftp.mkdir(workdir)
-            sftp.chdir(workdir)
-            for d in ['work_dir']:
-                sftp.mkdir(d)
-        
-            # copy the input file to the remote
-            ifile = Path(args.input)
-            ofile = f"work_dir/{ifile.name}"
-            logging.info(f"Pushing {args.input} to {ofile}")
-            sftp.put(ifile, ofile)
-
-            # while we're here, build a dict that holds the remote
-            # output names and the corresponding local output filenames
-            out_map = {f'work_dir/{ifile.stem}.csv': args.output}                       
-            
-            # Build a job file which we will be submitting to the queing system.
-            # This job reproduces the behavior of the Fraunhofer-supplied run.sh
-            # because this way the cleanup is easier and there is a smaller chance
-            # of failure.
-            with tempfile.TemporaryDirectory() as td:
-                jobfile = Path(td, 'job.sh')
-                with open(jobfile, "w") as f:
-                    f.write("#!/bin/bash\n")
-                    f.write(f"#SBATCH -p {config['job']['partition']}\n")
-                    f.write(f"#SBATCH --gres {config['job']['gres']}\n")
-                    f.write(f"#SBATCH -o {workspace}/stdout.txt\n")
-                    f.write(f"#SBATCH -e {workspace}/stderr.txt\n")
-                    if args.email is not None:
-                        f.write("#SBATCH --mail-type=ALL\n")
-                        f.write(f"#SBATCH --mail-user={args.email}\n")
-                    f.write(f"#SBATCH --mem={args.memory}G\n")
-                    f.write("module load singularity\n")
-                    f.write(f"singularity run --nv \\\n")
-                    f.write(f"  --bind {workspace}/work_dir:/mnt \\\n")
-                    f.write(f"  {config['remote']['inaspeech_sif']} \\\n")
-                    f.write(f"  /mnt/{ifile.name}\n")
-                    f.write(f"echo $? > {workspace}/finished.out\n")
-                sftp.put(jobfile, "job.sh")
-                sftp.chmod("job.sh", 0o755)
-
+    """
             # now that the job exists on carbonate, queue it
             command = f"cd {workspace}; sbatch {workspace}/job.sh; echo $?"
             logger.info(f"Running: {command}")
@@ -261,6 +266,7 @@ def old():
                 clean_up(sftp, workdir)
 
     exit(1 if error else rc)
+"""
 
 
 def clean_up(sftp, dir):

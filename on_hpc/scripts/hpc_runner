@@ -29,8 +29,8 @@ def main():
                 # skip non-directories and those which are finished.
                 continue
             
-            if not (job / "job.sh").exists():                  
-                # if the job directory exists but there's no job.sh file,
+            if not (job / "job.sh").exists() or (job / "job.sh").stat().st_mode & 0o100 != 0o100:                  
+                # if the job directory exists but there's no runnable job.sh file,
                 # wait until it is 10 minutes old to allow for uploads to
                 # complete.  
                 if time.time() - job.stat().st_mtime() < 600:

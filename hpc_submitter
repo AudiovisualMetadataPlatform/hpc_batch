@@ -68,7 +68,7 @@ def main():
                     logging.error(f"Cannot submit {jobfile}: {e}")
 
             # Submit the remote runner, if it isn't already
-            submit_runner(ssh, config['hpc_env'], debug=args.default,
+            submit_runner(ssh, config['hpc_env'], debug=args.debug,
                           email=args.email,
                           memory=config['hpc']['memory'],
                           partition=config['hpc']['partition'],
@@ -195,7 +195,12 @@ def get_results(ssh, nocleanup=False):
     and clean up the HPC side of things.
     """
     sftp = ssh.open_sftp()
-    pass
+    
+
+
+
+
+
 
 
 

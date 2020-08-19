@@ -18,7 +18,7 @@ def main():
 
     workspace = Path(f"{sys.path[0]}/../workspace")
     if not workspace.exists():
-        logging.error("Workspace doesn't exist!")
+        logging.error(f"Workspace doesn't exist! (sys.path[0]={sys.path[0]})")
         exit(1)
 
     # continue running jobs until there are no more to do.

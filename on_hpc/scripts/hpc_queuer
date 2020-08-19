@@ -45,7 +45,7 @@ def main():
 
     # we need to handle those, let's see if the runner is already queued.
     proc = subprocess.run(['squeue', '-u', getpass.getuser(), '--name', 'hpc_runner'],
-                          check=True, capture_output=True, encoding='utf-8')
+                          check=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding='utf-8')
     if len(proc.stdout.splitlines()) > 1:
         logging.debug("hpc_runner is already queued or running")
         exit(0)
@@ -53,16 +53,17 @@ def main():
     logging.debug("hpc_runner isn't in slurm and there are waiting jobs")
 
     cmd = ['sbatch', f'--mem={args.memory}', 
-           f"-e {workspace}/hpc_runner_stderr.txt",
-           f"-o {workspace}/hpc_runner_stdout.txt"]
+           "-e", f"{workspace}/hpc_runner_stderr.txt",
+           "-o", f"{workspace}/hpc_runner_stdout.txt"]
     if args.email:
-        cmd.append(f'--mail-type=ALL --mail-user={args.email}')
+        cmd.append('--mail-type=ALL')
+        cmd.append(f'--mail-user={args.email}')
     if args.partition:
-        cmd.append(f"-p {args.partition}")
+        cmd.append("-p")
+        cmd.append(args.partition)
     if args.gpu:
-        cmd.append(f"--gres {args.gpu}")
-    if args.debug:
-        cmd.append("--debug")
+        cmd.append("--gres")
+        cmd.append(args.gpu)
 
     cmd.append(f"{sys.path[0]}/hpc_runner")
 

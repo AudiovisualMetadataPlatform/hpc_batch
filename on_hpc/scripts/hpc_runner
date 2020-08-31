@@ -33,7 +33,7 @@ def main():
                 # if the job directory exists but there's no runnable job.sh file,
                 # wait until it is 10 minutes old to allow for uploads to
                 # complete.  
-                if time.time() - job.stat().st_mtime() < 600:
+                if time.time() - job.stat().st_mtime < 600:
                     pending += 1
                 continue
 

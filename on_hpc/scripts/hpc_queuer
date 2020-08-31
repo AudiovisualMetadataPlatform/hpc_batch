@@ -52,6 +52,14 @@ def main():
 
     logging.debug("hpc_runner isn't in slurm and there are waiting jobs")
 
+    # create a shell script which will call the hpc_runner
+    trampoline = Path(sys.path[0], "/../workspace/hpc_runner.sh")
+    with open(trampoline, "w") as f:
+        f.write("#!/bin/bash\n")
+        f.write(f"{sys.path[0]}/hpc_runner")
+    trampoline.chmod(0o755)
+
+    # submit the trampoline into slurm.
     cmd = ['sbatch', f'--mem={args.memory}', 
            "-e", f"{workspace}/hpc_runner_stderr.txt",
            "-o", f"{workspace}/hpc_runner_stdout.txt"]
@@ -64,9 +72,7 @@ def main():
     if args.gpu:
         cmd.append("--gres")
         cmd.append(args.gpu)
-
-    cmd.append(f"{sys.path[0]}/hpc_runner")
-
+    cmd.append(trampoline)
     proc = subprocess.run(cmd)
 
 

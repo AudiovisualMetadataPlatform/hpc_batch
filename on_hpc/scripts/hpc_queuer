@@ -68,7 +68,7 @@ def main():
            "-e", f"{workspace}/hpc_runner_stderr.txt",
            "-o", f"{workspace}/hpc_runner_stdout.txt",
            '-J', 'hpc_runner',
-           '-t', '10']  # NOTE:  this sets up a 10 minute limit for testing.  Use something larger!
+           '-t', '480']
     if args.email:
         cmd.append('--mail-type=ALL')
         cmd.append(f'--mail-user={args.email}')

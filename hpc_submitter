@@ -27,7 +27,7 @@ def main():
     parser.add_argument("config", help="Configuration file")
     args = parser.parse_args()
 
-    logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO, 
+    logging.basicConfig(level=logging.DEBUG if args.debug else logging.WARNING, 
                         stream=sys.stderr,
                         format="%(asctime)s %(levelname)s %(message)s")
 
@@ -75,8 +75,13 @@ def main():
                           resource=config['hpc']['gres'])
 
             # capture any ready output
-            get_results(ssh, nocleanup=args.nocleanup)
+            for jobfile in dropbox.glob("*.job.submitted"):
+                try:
+                    collect_job(ssh, jobfile, nocleanup=args.nocleanup)
+                except Exception as e:
+                    logging.error(f"Cannot collect {jobfile}: {e}")
     
+
     except Exception as e:        
         logging.error(e)
         traceback.print_exc()
@@ -97,8 +102,9 @@ def send_job(ssh, jobfile, hpc_env):
     # the inode of the submitted job file and the current time.
     workdir = f"/{socket.gethostname().split('.')[0]}-{jobfile.stat().st_ino}-{time.time()}"
     workspace = hpc_env['workspace'] + workdir
-    job['hpc_workspace'] = workspace
-    job['finished_file'] = f"{workspace}/finished.out"
+    hpc = {}
+    hpc['workspace'] = workspace
+    hpc['finished_file'] = f"{workspace}/finished.out"
 
     logging.debug(f"Creating work directory: {workspace}")
     sftp.mkdir(workspace)
@@ -109,7 +115,7 @@ def send_job(ssh, jobfile, hpc_env):
     params.update(hpc_env)
     if 'args' in job:
         params.update(job['args'])
-        
+
     # set the workspace to this job's workspace
     params['workspace'] = workspace
 
@@ -117,11 +123,11 @@ def send_job(ssh, jobfile, hpc_env):
     # copy the input files to the workspace    
     sftp.mkdir('input')
     sftp.chdir('input')
-    job['input_map_hpc'] = {}
+    hpc['input_map'] = {}
     for ifile, localfile in job['input_map'].items():
         localfile = Path(localfile)
         remotefile = workspace + "/input/" + localfile.name
-        job['input_map_hpc'][ifile] = remotefile
+        hpc['input_map'][ifile] = remotefile
         logging.debug(f"Copying {localfile} to {remotefile}")
         sftp.put(localfile, remotefile)
         params[ifile] = localfile.name
@@ -129,11 +135,11 @@ def send_job(ssh, jobfile, hpc_env):
     
     # create the map for the output files
     sftp.mkdir('output')
-    job['output_map_hpc'] = {}
+    hpc['output_map'] = {}
     for ofile, localfile in job['output_map'].items():
         localfile = Path(localfile)
         remotefile = workspace + "/output/" + localfile.name
-        job['output_map_hpc'][ofile] = remotefile
+        hpc['output_map'][ofile] = remotefile
         params[ofile] = localfile.name
 
     # build the job script 
@@ -156,6 +162,7 @@ def send_job(ssh, jobfile, hpc_env):
     sftp.put(hpc_jobfile, workspace + "/job.sh")
     sftp.chmod(workspace + "/job.sh", 0o750)
 
+    job['hpc'] = hpc
     # write the updated job file as .submitted
     with open(str(jobfile) + ".submitted", "w") as f:
         yaml.dump(job, f)
@@ -180,103 +187,65 @@ def submit_runner(ssh, hpc_env, email=None, debug=False,
         cmd.append(f"--gpu {resource}")
     if debug:
         cmd.append("--debug")
-    cmd.append(f"{hpc_env['scripts']}/hpc_runner")
-
     command = " ".join(cmd)
     ssh.exec_command(command)
 
 
 
-
-
-
-
-
-
-def get_results(ssh, nocleanup=False):
+def collect_job(ssh, jobfile, nocleanup=False):
     """
     Check for completed jobs, copy the output files, create the results file,
     and clean up the HPC side of things.
     """
     sftp = ssh.open_sftp()
-    
+    with open(jobfile) as f:
+        job = yaml.load(f, Loader=yaml.SafeLoader)
 
+    # check to see if the finished file exists
+    try:
+        stat = sftp.stat(job['hpc']['finished_file'])        
+    except Exception:
+        logging.debug(f"Job for file file {jobfile} isn't finished yet")
+        return
 
+    results = {}
+    with sftp.open(f"{job['hpc']['workspace']}/stderr.txt") as f:
+        results['stderr'] = str(f.read(), encoding='utf8')
+    with sftp.open(f"{job['hpc']['workspace']}/stdout.txt") as f:
+        results['stdout'] = str(f.read(), encoding='utf8')
+    with sftp.open(job['hpc']['finished_file']) as f:
+        results['rc'] = int(f.readline())
 
-
-
-
-
-
-
-
-
-
-
-def old():
-    """
-            # now that the job exists on carbonate, queue it
-            command = f"cd {workspace}; sbatch {workspace}/job.sh; echo $?"
-            logging.info(f"Running: {command}")
-            _, stdout, stderr = ssh.exec_command(command)
-            stdout = stdout.readlines()
-            rc = int(stdout[-1])
-            logging.info(f"Return code: {rc}")
-            logging.debug(f"STDOUT: {''.join(stdout)}")
-            logging.debug(f"STDERR: {''.join(stderr.readlines())}")
-
-            if rc != 0:
-                raise Exception(f"Cannot queue job RC={rc}")
-
-            # the job is queued, so we just need to wait for the finished.out
-            # file to appear (which contains the return code)
-            poll = 30
-            logging.info(f"Checking every {poll}s for {workspace}/finished.out to appear")
-            while True:
-                try:
-                    sftp.stat(f"{workspace}/finished.out")
-                    logging.info(f"{workspace}/finished.out has appeared")
-                    break
-                except FileNotFoundError as e:
-                    # we're expecting this.
-                    logging.debug(f"Still waiting.")
-                    time.sleep(poll)
-
-            with tempfile.TemporaryDirectory() as td:
-                logging.debug("Retrieving finished.out")
-                sftp.get(f"{workspace}/finished.out", f"{td}/finished.out")
-                with open(f"{td}/finished.out") as f:
-                    rc = int(f.readline())
-                if rc != 0:
-                    # uh oh.  Grab the stdout and stderr bits and dump them.
-                    logging.error(f"Not-zero return code from batch job: {rc}")
-                    for out in ("stdout.txt", "stderr.txt"):
-                        try:
-                            sftp.get(f"{workspace}/{out}", f"{td}/{out}")
-                            with open(f"{td}/{out}") as f:
-                                output = f.read()
-                            logging.error(f"Contents of {out}:\n{output}")
-                        except Exception as e:
-                            pass
-                    error = True
-                else:
-                    for o in out_map:
-                        logging.info(f"Retrieving {o} as {out_map[o]}")
-                        sftp.get(f"{workspace}/{o}", out_map[o])
-                        
+    if results['rc'] == 0:
+        results['status'] = 'ok'
+        results['message'] = "Successful"
+        try:
+            for k, source in job['hpc']['output_map'].items():
+                dest = job['output_map'][k]
+                logging.debug(f"Copying {source} -> {dest}")
+                sftp.get(source, dest)
         except Exception as e:
-            logging.critical(f"Error during processing: {e}")
-            error = True
-        finally:
-            if args.nocleanup:
-                logging.info(f"Not cleaning up remote directory {workspace}")
-            else:
-                logging.info(f"Cleaning up work directory {workspace}")
-                sftp.chdir("..")
-                clean_up(sftp, workdir)
+            results['status'] = 'error'
+            results['message'] = 'Could not copy files'
 
-    exit(1 if error else rc)
-"""
+    else:
+        results['status'] = 'error'
+        results['message'] = f"Remote process failed with RC {results['rc']}"    
+
+    job['job'] = results
+    # write the updated job file as .submitted
+    finfile = str(jobfile).replace(".submitted", ".finished")
+    with open(finfile, "w") as f:
+        yaml.dump(job, f)
+    # remove the submitted job file
+    jobfile.unlink()
+
+    if nocleanup:
+        return
+
+    # clean up the job and remote workspace
+    logging.debug(f"Cleaning up job ({jobfile}) and workspace ({job['hpc']['workspace']}")
+    clean_up(sftp, job['hpc']['workspace'])
 
 
 def clean_up(sftp, dir):

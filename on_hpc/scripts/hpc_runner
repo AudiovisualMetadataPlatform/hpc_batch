@@ -43,11 +43,11 @@ def main():
                 with open(job / "stderr.txt", mode="w", encoding='utf-8') as stderr:
                     script = job / "job.sh"                    
                     logging.debug(f"Running {script}")
-                    #proc = subprocess.run([script],
-                    #                    stdout=stdout, stderr=stderr)
-                    proc = subprocess.run([script], stderr=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf8')
-                    stdout.write(proc.stdout)
-                    stderr.write(proc.stderr)
+                    proc = subprocess.run([script],
+                                          stdout=stdout, stderr=stderr)
+                    #proc = subprocess.run([script], stderr=subprocess.PIPE, stdout=subprocess.PIPE, encoding='utf8')
+                    #stdout.write(proc.stdout)
+                    #stderr.write(proc.stderr)
                     with open(job / "finished.out", mode="w") as f:
                         f.write(str(proc.returncode) + "\n")
                     logging.debug(f"Exit with return code {proc.returncode}")

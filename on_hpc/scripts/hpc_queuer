@@ -64,7 +64,7 @@ def main():
     trampoline.chmod(0o755)
 
     # submit the trampoline into slurm.
-    cmd = ['sbatch', f'--mem={args.memory}', 
+    cmd = ['sbatch', f'--mem={args.memory}G', 
            "-e", f"{workspace}/hpc_runner_stderr.txt",
            "-o", f"{workspace}/hpc_runner_stdout.txt",
            '-J', 'hpc_runner',

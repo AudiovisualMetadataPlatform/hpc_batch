@@ -109,6 +109,10 @@ def send_job(ssh, jobfile, hpc_env):
     params.update(hpc_env)
     if 'args' in job:
         params.update(job['args'])
+        
+    # set the workspace to this job's workspace
+    params['workspace'] = workspace
+
 
     # copy the input files to the workspace    
     sftp.mkdir('input')

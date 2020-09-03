@@ -1,12 +1,24 @@
 #!/bin/bash
 module load singularity
-exec singularity run --nv \
-    --bind {workspace}/in_dir:amp_files/input \
-    --bind {workspace}/out_dir:amp_files/output \
-    --bind {workspace}/work_dir:amp_files/data \
-    {scripts}/amp-nvidia-kaldi-asr-1.2.sif \
+# make the needed directories
+mkdir <<workspace>>/data
+mkdir <<workspace>>/output_temp
+singularity run --nv \
+    --bind <<workspace>>:/amp_files \
+    <<containers>>/amp-nvidia-kaldi-asr-1.2.sif \
     /opt/amp/ampservice/main.py \
     -i /amp_files/input \
-    -o /amp_files/output \
+    -o /amp_files/output_temp \
     -d /amp_files/data \
-    --log_level debug --single-run --lowercase
+    -l debug -sr -lc
+RC=$?
+
+# because kaldi converts the filename.mp3 to filename.amp.json, filename.pua.json, and filename.txt
+# we have to do some moves to make the filenames appear where the other end is looking for them.
+base=$(basename <<input>> | sed -e "s/.\(mp3\|wav\)$//")
+echo $base
+cp <<workspace>>/output_temp/$base.amp.json <<workspace>>/output/<<amp_json>>
+cp <<workspace>>/output_temp/$base.pua.json <<workspace>>/output/<<kaldi_json>>
+cp <<workspace>>/output_temp/$base.txt <<workspace>>/output/<<kaldi_txt>>
+
+exit $RC

@@ -5,7 +5,6 @@ import logging
 import sys
 import hpc_submit
 
-
 def main():
     """
     Submit a job to run ina speech segmenter on HPC
@@ -34,7 +33,6 @@ def main():
     }
 
     job = hpc_submit.submit_and_wait(args.dropbox, job)
-    
     exit(0 if job['job']['status'] == 'ok' else 1)
 
 if __name__ == "__main__":

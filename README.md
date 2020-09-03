@@ -215,16 +215,13 @@ submitter must ensure a unique filename that ends with ".job"
 This is a flat directory with no internal structure.  
 
 ### Directory on HPC 
-...TODO...
+The repo can be checked out on HPC and used directly
 ````
-hpc_batch/
-    scripts/
-        # hpc_runner, support scripts, singularity
-        # containers, etc.
-    templates/
-        # script templates
-    jobs/
-        # dropbox for job descriptions
-    workspace/
-        # a new subdir created for each running job?
+hpc_batch/ <- from repo
+├── dropbox <- not used on HPC
+├── on_hpc
+│   ├── scripts <- HPC maintenance scripts
+│   └── workspace <--  scratch space for HPC jobs
+└── tools  <- not used on HPC
+singularity/  <- storage for singularity containers    
 ````

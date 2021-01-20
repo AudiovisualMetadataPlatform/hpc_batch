@@ -188,6 +188,7 @@ def submit_runner(ssh, hpc_env, email=None, debug=False,
     if debug:
         cmd.append("--debug")
     command = " ".join(cmd)
+    logging.debug(f"Submitting runner: {cmd}")
     ssh.exec_command(command)
 
 
@@ -205,7 +206,7 @@ def collect_job(ssh, jobfile, nocleanup=False):
     try:
         stat = sftp.stat(job['hpc']['finished_file'])        
     except Exception:
-        logging.debug(f"Job for file file {jobfile} isn't finished yet")
+        logging.debug(f"Job for file {jobfile} isn't finished yet ({job['hpc']['finished_file']})")
         return
 
     results = {}
@@ -225,6 +226,7 @@ def collect_job(ssh, jobfile, nocleanup=False):
                 logging.debug(f"Copying {source} -> {dest}")
                 sftp.get(source, dest)
         except Exception as e:
+            logging.error(f"Could not copy file {source} -> {job['output_map'][k]}")
             results['status'] = 'error'
             results['message'] = 'Could not copy files'
 

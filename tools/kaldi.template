@@ -3,6 +3,8 @@ module load singularity
 # make the needed directories
 mkdir <<workspace>>/data
 mkdir <<workspace>>/output_temp
+# UITS imports an incompatible version of perl libraries -- hide them from the scripts
+unset PERL5LIB
 singularity run --nv \
     --bind <<workspace>>:/amp_files \
     <<containers>>/amp-nvidia-kaldi-asr-1.2.sif \

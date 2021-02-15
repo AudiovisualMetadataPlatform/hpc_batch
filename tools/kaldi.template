@@ -3,6 +3,8 @@ module load singularity
 # make the needed directories
 mkdir <<workspace>>/data
 mkdir <<workspace>>/output_temp
+# UITS imports an incompatible version of perl libraries -- hide them from the scripts
+unset PERL5LIB
 singularity run --nv \
     --bind <<workspace>>:/amp_files \
     <<containers>>/amp-nvidia-kaldi-asr-1.2.sif \
@@ -15,7 +17,7 @@ RC=$?
 
 # because kaldi converts the filename.mp3 to filename.amp.json, filename.pua.json, and filename.txt
 # we have to do some moves to make the filenames appear where the other end is looking for them.
-base=$(basename <<input>> | sed -e "s/.\(mp3\|wav\)$//")
+base=$(basename <<input>> | sed -e "s/.\(dat\|mp3\|wav\)$//")
 echo $base
 cp <<workspace>>/output_temp/$base.amp.json <<workspace>>/output/<<amp_json>>
 cp <<workspace>>/output_temp/$base.pua.json <<workspace>>/output/<<kaldi_json>>

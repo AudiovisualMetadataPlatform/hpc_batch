@@ -82,6 +82,10 @@ def main():
                     logging.error(f"Cannot collect {jobfile}: {e}")
     
 
+    except paramiko.AuthenticationException as e:
+        logging.debug(e)
+        exit(1)
+
     except Exception as e:        
         logging.error(e)
         traceback.print_exc()

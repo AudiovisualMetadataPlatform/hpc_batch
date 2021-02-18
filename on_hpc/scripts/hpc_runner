@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from datetime import datetime
 import sys
 import subprocess
 from pathlib import Path
@@ -43,10 +44,13 @@ def main():
                 with open(job / "stderr.txt", mode="w", encoding='utf-8') as stderr:
                     script = job / "job.sh"                    
                     logging.debug(f"Running {script}")
+                    startTime = datetime.now()
                     proc = subprocess.run([script],
                                           stdout=stdout, stderr=stderr)
                     with open(job / "finished.out", mode="w") as f:
                         f.write(str(proc.returncode) + "\n")
+                        f.write(str(startTime) + "\n")
+                        f.write(str(datetime.now()) + "\n")
                     logging.debug(f"Exit with return code {proc.returncode}")
         
         if pending:

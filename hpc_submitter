@@ -220,8 +220,8 @@ def collect_job(ssh, jobfile, nocleanup=False):
         results['stdout'] = str(f.read(), encoding='utf8')
     with sftp.open(job['hpc']['finished_file']) as f:
         results['rc'] = int(f.readline())
-        results['start'] = f.readline()
-        results['end'] = f.readline()
+        results['start'] = f.readline().rstrip('\n')
+        results['end'] = f.readline().rstrip('\n')
 
     if results['rc'] == 0:
         results['status'] = 'ok'

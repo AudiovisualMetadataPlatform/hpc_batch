@@ -85,7 +85,9 @@ def main():
     except paramiko.AuthenticationException as e:
         logging.debug(e)
         exit(1)
-
+    except paramiko.SSHException as e:
+        logging.debug(e)
+        exit(1)
     except Exception as e:        
         logging.error(e)
         traceback.print_exc()
